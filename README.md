@@ -1,3 +1,6 @@
+<p align="center">
+  <img src="./assets/graveyard-logo.png" alt="Graveyard" width="400">
+</p>
 # Graveyard
 
 **Graveyard** is a web framework built in [Goblin](https://github.com/ddonche/goblin-lang).  
