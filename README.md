@@ -1,6 +1,6 @@
 # Graveyard
 
-**Graveyard** is a web framework built in [Goblin](https://github.com/ddonche/goblinlang).  
+**Graveyard** is a web framework built in [Goblin](https://github.com/ddonche/goblin-lang).  
 
 It is designed to make web application development simple, fast, and reliable without unnecessary complexity.  
 Graveyard provides the core tools you need to build and serve modern applications while staying true to Goblin’s philosophy of clarity and precision.  
