@@ -1,0 +1,74 @@
+/// glams/graveyard/request.gbln
+
+act parse_pairs(raw)
+    data | {}
+
+    if raw == nil
+        return data
+    xx
+
+    if raw == ""
+        return data
+    xx
+
+    pairs | raw.split("&")
+
+    for pair in pairs
+        if pair != ""
+            parts | pair.split("=")
+
+            key | parts{0} ?? ""
+            value | parts{1} ?? ""
+
+            if key != ""
+                data{key} | value
+            xx
+        xx
+    xx
+
+    return data
+xx
+
+act ctx()
+    method | :env("GOBLIN_REQUEST_METHOD")
+    path | :env("GOBLIN_REQUEST_PATH")
+    query_raw | :env("GOBLIN_QUERY_STRING")
+    body_raw | :env("GOBLIN_REQUEST_BODY")
+
+    return {
+        "method": method,
+        "path": path,
+        "query": parse_pairs(query_raw),
+        "body_raw": body_raw,
+        "body": parse_pairs(body_raw),
+        "params": {},
+        "headers": {}
+    }
+xx
+
+act method(ctx)
+    return ctx{"method"}
+xx
+
+act path(ctx)
+    return ctx{"path"}
+xx
+
+act param(ctx, name)
+    params | ctx{"params"} ?? {}
+    return params{name}
+xx
+
+act query(ctx, name)
+    query | ctx{"query"} ?? {}
+    return query{name}
+xx
+
+act body(ctx)
+    return ctx{"body"} ?? {}
+xx
+
+act header(ctx, name)
+    headers | ctx{"headers"} ?? {}
+    return headers{name}
+xx

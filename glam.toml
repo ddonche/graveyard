@@ -1,0 +1,44 @@
+[glam]
+name = "graveyard"
+version = "0.1.0"
+author = "Dan Donche"
+description = "Minimal web application framework for Goblin."
+license = "MIT"
+entry = "graveyard.gbln"
+
+[needs.actions]
+select = ""
+insert = ""
+update = ""
+delete = ""
+
+[provides]
+actions = [
+    "graveyard::ctx",
+    "graveyard::method",
+    "graveyard::path",
+    "graveyard::param",
+    "graveyard::query",
+    "graveyard::body",
+    "graveyard::header",
+
+    "graveyard::html",
+    "graveyard::json",
+    "graveyard::redirect",
+    "graveyard::not_found",
+    "graveyard::forbidden",
+
+    "graveyard::select",
+    "graveyard::insert",
+    "graveyard::update",
+    "graveyard::delete",
+
+    "graveyard::render",
+
+    "graveyard::route",
+    "graveyard::match_route",
+    "graveyard::dispatch",
+
+    "graveyard::run",
+    "graveyard::load_routes"
+]

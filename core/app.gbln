@@ -1,0 +1,7 @@
+/// glams/graveyard/core/app.gbln
+
+act run(routes)
+    request_ctx | ctx()
+
+    return dispatch(request_ctx, routes)
+xx

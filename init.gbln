@@ -1,0 +1,55 @@
+/// glams/graveyard/init.gbln
+
+act init()
+    if not :file_exists("goblin.yaml")
+        :say("graveyard init must be run from a Goblin project root")
+        return false
+    xx
+
+    :create_dir!("handlers")
+    :create_dir!("models")
+    :create_dir!("views")
+    :create_dir!("public")
+    :create_dir!("modules")
+
+    :create_dir!("db")
+    :create_dir!("db/migrations")
+
+    if not :file_exists("box.toml")
+        :write_text!(
+            "box.toml",
+            """# Graveyard box configuration
+"""
+        )
+    xx
+
+    if not :file_exists("manifest.imports")
+        :write_text!(
+            "manifest.imports",
+            """# Application imports
+"""
+        )
+    xx
+
+    if not :file_exists("routes.gbln")
+        :write_text!(
+            "routes.gbln",
+            """/// Application routes
+
+routes | [
+]
+"""
+        )
+    xx
+
+    if not :file_exists("db/seeds.gbln")
+        :write_text!(
+            "db/seeds.gbln",
+            """/// Database seeds
+"""
+        )
+    xx
+
+    :say("Graveyard initialized.")
+    return true
+xx

@@ -1,0 +1,39 @@
+/// glams/graveyard/response.gbln
+
+act response(status, headers, body)
+    return {
+        "status": status,
+        "headers": headers,
+        "body": body
+    }
+xx
+
+act html(ctx, html)
+    return response(200, {
+        "Content-Type": "text/html"
+    }, html)
+xx
+
+act json(ctx, data)
+    return response(200, {
+        "Content-Type": "application/json"
+    }, :json_stringify(data))
+xx
+
+act redirect(ctx, path)
+    return response(302, {
+        "Location": path
+    }, "")
+xx
+
+act not_found(ctx)
+    return response(404, {
+        "Content-Type": "text/html"
+    }, "<h1>404 Not Found</h1>")
+xx
+
+act forbidden(ctx)
+    return response(403, {
+        "Content-Type": "text/html"
+    }, "<h1>403 Forbidden</h1>")
+xx

@@ -1,0 +1,59 @@
+/// glams/graveyard/router.gbln
+
+act route(method, path, handler)
+    return {
+        "method": method,
+        "path": path,
+        "handler": handler
+    }
+xx
+
+act match_route(route, method, path)
+    if route{"method"} != method
+        return nil
+    xx
+
+    pattern | route{"path"}
+    pattern_parts | :split(pattern, "/")
+    path_parts | :split(path, "/")
+
+    if :length(pattern_parts) != :length(path_parts)
+        return nil
+    xx
+
+    params | {}
+
+    for i in 0..(:length(pattern_parts) - 1)
+        pattern_part | pattern_parts{i}
+        path_part | path_parts{i}
+
+        if :starts_with(pattern_part, ":")
+            name | :replace(pattern_part, ":", "")
+            params{name} | path_part
+            continue
+        xx
+
+        if pattern_part != path_part
+            return nil
+        xx
+    xx
+
+    return params
+xx
+
+act dispatch(ctx, routes)
+    request_method | method(ctx)
+    request_path | path(ctx)
+
+    for route in routes
+        params | match_route(route, request_method, request_path)
+
+        if params != nil
+            ctx{"params"} | params
+            handler | route{"handler"}
+            return :invoke(handler, ctx)
+        xx
+    xx
+
+    return not_found(ctx)
+xx
