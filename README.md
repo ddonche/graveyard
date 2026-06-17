@@ -3,8 +3,6 @@
   <img src="./assets/graveyard-logo-light-nobg.png" alt="Graveyard" width="500">
 </picture>
 
-# Graveyard
-
 **Graveyard** is a web framework built in [Goblin](https://github.com/ddonche/goblin-lang).
 
 It is designed to make web application development simple, fast, and reliable while staying true to Goblin's philosophy of clarity and precision.
