@@ -1,340 +1,129 @@
-# Graveyard
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="./assets/graveyard-logo-dark-nobg.png">
+  <img src="./assets/graveyard-logo-light-nobg.png" alt="Graveyard" width="500">
+</picture>
 
-Graveyard is a minimal web application framework for Goblin.
+**Graveyard** is a web framework built in [Goblin](https://github.com/ddonche/goblin-lang).
 
-The goal of Graveyard is simple:
+It is designed to make web application development simple, fast, and reliable while staying true to Goblin's philosophy of clarity and precision.
 
-```text
-request
-  ↓
-route
-  ↓
-handler
-  ↓
-data
-  ↓
-view
-  ↓
-response
-```
+Unlike traditional web frameworks that assume every application needs a database server, Graveyard is built around files, shards, and request-time page assembly.
 
-Application code talks to Graveyard.
-
-Application code does not talk directly to database providers.
-
----
-
-# Installation
-
-Import Graveyard:
-
-```goblin
-use graveyard as gy
-```
-
-Configure database providers in your application's `graveyard.toml`.
-
-Example:
-
-```toml
-[needs.actions]
-select = "goblin_supabase::select"
-insert = "goblin_supabase::insert"
-update = "goblin_supabase::update"
-delete = "goblin_supabase::delete"
-```
-
-Application code always calls:
-
-```goblin
-gy::select(...)
-gy::insert(...)
-gy::update(...)
-gy::delete(...)
-```
-
-Never:
-
-```goblin
-goblin_supabase::select(...)
-```
-
-This allows the underlying database provider to be replaced without changing application code.
-
----
-
-# Project Layout
-
-A Graveyard application is expected to look like:
+The core model is simple:
 
 ```text
-my_blog/
-  routes.gbln
-
-  handlers/
-    posts.gbln
-
-  views/
-    posts/
-      index.gbln
-      show.gbln
-      new.gbln
-
-  public/
+forms
+  → files
+  → shards
+  → pages
+  → assembled responses
 ```
 
----
+Application content lives as files.
 
-# Routes
+Rendered content lives as shards.
 
-Routes are declared in `routes.gbln`.
+Pages are assembled from shards when requested.
 
-Routes are ordinary Goblin data.
+SQLite is used only for authentication, sessions, password hashes, reset tokens, verification tokens, and other security-related records.
 
-Example:
+Everything else is stored as Graveyard-native content.
 
-```goblin
-routes | [
-    {
-        method: "GET",
-        path: "/",
-        handler: "posts::index"
-    },
-    {
-        method: "GET",
-        path: "/posts",
-        handler: "posts::index"
-    },
-    {
-        method: "GET",
-        path: "/posts/new",
-        handler: "posts::new"
-    },
-    {
-        method: "GET",
-        path: "/posts/:id",
-        handler: "posts::show"
-    },
-    {
-        method: "POST",
-        path: "/posts",
-        handler: "posts::create"
-    }
-]
-```
+## Features
 
-The router matches the request and invokes the handler using:
+* ⚡ Built entirely in Goblin
+* 🌐 Routing for dynamic and static endpoints
+* 🧩 File-based content architecture
+* ⚰️ One-file shard system
+* 📄 Page composition through shard assembly
+* 🪦 Rebuildable indexes and headstones
+* 🔐 Local authentication and sessions
+* 📦 Simple configuration and deployment
 
-```goblin
-:invoke(handler, ctx)
-```
+## Core Concepts
 
----
+### Shards
 
-# Handlers
+A shard is the fundamental content unit in Graveyard.
 
-Handlers live in the `handlers/` directory.
+Examples include:
 
-Example:
+* Site headers
+* Site footers
+* Navigation blocks
+* Wiki sections
+* Blog content
+* Forum replies
+* Comments
+* Profile sections
+* Feed items
 
-```goblin
-use graveyard as gy
+Each shard is stored as a single file containing metadata and rendered content.
 
-act index(ctx)
-    posts | gy::select("posts", {
-        order: "created_at.desc"
-    })
+### Pages
 
-    html | gy::render("posts/index", {
-        posts: posts
-    })
+Pages are compositions.
 
-    return gy::html(ctx, html)
-xx
-```
+A page defines which shards should appear and how they should be assembled.
 
-Handlers receive a request context and return a response.
-
----
-
-# Route Parameters
-
-Routes may capture parameters.
-
-Route:
-
-```goblin
-{
-    method: "GET",
-    path: "/posts/:id",
-    handler: "posts::show"
-}
-```
-
-Request:
+In Graveyard:
 
 ```text
-/posts/42
+The page is not the unit.
+
+The shard is the unit.
 ```
 
-Handler:
+### Indexes
 
-```goblin
-id | gy::param(ctx, "id")
-```
+Indexes are derived lookup files.
 
-Value:
+They help Graveyard locate shards, pages, routes, authors, threads, and other relationships efficiently.
 
-```text
-42
-```
+Indexes are rebuildable and are never the source of truth.
 
----
+### Local Authentication
 
-# Request Helpers
+Graveyard ships with local authentication and session management.
 
-Graveyard provides:
+SQLite is used only for:
 
-```goblin
-gy::ctx()
-gy::method(ctx)
-gy::path(ctx)
-gy::param(ctx, name)
-gy::query(ctx, name)
-gy::body(ctx)
-gy::header(ctx, name)
-```
+* Users
+* Password hashes
+* Sessions
+* Verification tokens
+* Password reset tokens
+* Rate limits
 
----
+Application content remains file-based.
 
-# Database Helpers
+## Why Graveyard?
 
-Graveyard provides:
+Most web frameworks assume every application requires:
 
-```goblin
-gy::select(...)
-gy::insert(...)
-gy::update(...)
-gy::delete(...)
-```
+* A database server
+* Connection strings
+* Migrations
+* External infrastructure
 
-These delegate through configured action needs.
+Graveyard takes a different approach.
 
----
+For many applications, content can live directly on disk as structured files.
 
-# Rendering
+This provides:
 
-Views live in the `views/` directory.
+* Simpler deployment
+* Fewer moving parts
+* Easier backups
+* Human-readable content
+* Reduced infrastructure requirements
 
-Example:
+## Status
 
-```text
-views/posts/index.gbln
-```
+Graveyard is currently in early development.
 
-Render:
+Expect frequent changes and incomplete features until the first stable release.
 
-```goblin
-html | gy::render("posts/index", {
-    posts: posts
-})
-```
+## License
 
-Graveyard resolves:
-
-```text
-views/posts/index.gbln
-```
-
-and renders it.
-
----
-
-# Render Mode
-
-Views begin with:
-
-```goblin
-<{ render }>
-```
-
-Example:
-
-```goblin
-<{ render }>
-
-<h1>Posts</h1>
-
-<{ for post in posts }>
-    <article>
-        <h2>
-            <{ post{"title"} }>
-        </h2>
-
-        <p>
-            <{ post{"body"} }>
-        </p>
-    </article>
-<{ xx }>
-```
-
-Rules:
-
-* Text outside `<{ ... }>` is literal output.
-* Code inside `<{ ... }>` is Goblin code.
-* Expressions render their value.
-* Control structures control output.
-
----
-
-# Responses
-
-HTML:
-
-```goblin
-return gy::html(ctx, html)
-```
-
-JSON:
-
-```goblin
-return gy::json(ctx, data)
-```
-
-Redirect:
-
-```goblin
-return gy::redirect(ctx, "/posts")
-```
-
-404:
-
-```goblin
-return gy::not_found(ctx)
-```
-
-403:
-
-```goblin
-return gy::forbidden(ctx)
-```
-
----
-
-# Request Lifecycle
-
-```text
-HTTP Request
-    ↓
-Route Match
-    ↓
-Handler
-    ↓
-Database Provider
-    ↓
-View Render
-    ↓
-Response
-```
-
-That is the entire Graveyard model.
+[MIT](LICENSE)
