@@ -1,0 +1,38 @@
+/// core/storage.gbln
+/// Graveyard storage contract.
+///
+/// This file defines Graveyard's canonical disk layout.
+/// It does not parse shards.
+/// It does not parse pages.
+/// It does not parse indexes.
+/// It does not render.
+/// It does not route.
+///
+/// Other core files read this contract and obey it.
+
+graveyard_storage | {
+    root: ".",
+    content: "content",
+
+    pages: "content/pages",
+    shards: "content/shards",
+    indexes: "content/indexes",
+
+    private: ".graveyard",
+
+    auth_db: ".graveyard/auth.sqlite",
+    sessions_db: ".graveyard/sessions.sqlite",
+    key: ".graveyard/graveyard.key",
+
+    tmp: ".graveyard/tmp",
+
+    shard_bucket: {
+        enabled: true,
+        chars: 2,
+    },
+
+    writes: {
+        mode: "atomic",
+        temp_dir: ".graveyard/tmp",
+    }
+}
