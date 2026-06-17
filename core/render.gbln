@@ -1,6 +1,0 @@
-/// glams/graveyard/render.gbln
-
-act render(view, data)
-    path | "views/{view}.gbln"
-    return :render_template(path, data)
-xx
