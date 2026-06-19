@@ -24,13 +24,13 @@
 /// frontmatter fields. shards.gbln preserves those fields but does not know
 /// their meaning.
 
-use storage
+import "storage"
 
 #graveyard::shard_fence | "^^^^"
 
 /// ----------------------------------------------------------------------
 /// Return the bucket directory name for a shard UUID.
-/// 8f3a... => 8f
+/// 019e... => 01
 /// ----------------------------------------------------------------------
 act shard_bucket(id)
     bucket_cfg | #graveyard::storage{"shard_bucket"}
@@ -40,24 +40,37 @@ act shard_bucket(id)
 xx
 
 /// ----------------------------------------------------------------------
-/// Return canonical path for a shard UUID.
-/// content/shards/8f/8f3a....gbln
+/// Return the shard model/type from metadata.
+/// Graveyard requires model.
+/// post, comment, wiki_section, forum_reply, etc.
 /// ----------------------------------------------------------------------
-act shard_path(id)
-    bucket | shard_bucket(id)
-    dir | :path_join(#graveyard::storage{"shards"}, bucket)
-
-    return :path_join(dir, id + ".gbln")
+act shard_model(meta)
+    return :get_at(meta, "model")
 xx
 
 /// ----------------------------------------------------------------------
-/// Ensure the bucket directory for a shard exists.
+/// Return canonical path for a shard UUID under its model/type.
+/// content/shards/post/01/019e....gbln
 /// ----------------------------------------------------------------------
-act ensure_shard_dir(id)
+act shard_path_for(model, id)
     bucket | shard_bucket(id)
-    dir | :path_join(#graveyard::storage{"shards"}, bucket)
 
-    :create_dir!(dir)
+    model_dir  | :path_join(#graveyard::storage{"shards"}, model)
+    bucket_dir | :path_join(model_dir, bucket)
+
+    return :path_join(bucket_dir, id + ".gbln")
+xx
+
+/// ----------------------------------------------------------------------
+/// Ensure the bucket directory for a model shard exists.
+/// ----------------------------------------------------------------------
+act ensure_shard_dir_for(model, id)
+    bucket | shard_bucket(id)
+
+    model_dir  | :path_join(#graveyard::storage{"shards"}, model)
+    bucket_dir | :path_join(model_dir, bucket)
+
+    :create_dir!(bucket_dir)
 xx
 
 /// ----------------------------------------------------------------------
@@ -86,31 +99,31 @@ act build_shard_text(meta, body)
 xx
 
 /// ----------------------------------------------------------------------
-/// Read a shard by UUID.
+/// Read a shard by model + UUID.
 /// Returns { meta, body, path }.
 /// ----------------------------------------------------------------------
-act read_shard(id)
-    path | shard_path(id)
+act read_shard(model, id)
+    path | shard_path_for(model, id)
 
-    text | :read_text(path)
+    text  | :read_text(path)
     shard | parse_shard(text)
 
-    :update_at!(shard, "path", path)
+    :put_at!(shard, "path", path)
 
     return shard
 xx
 
 /// ----------------------------------------------------------------------
 /// Save shard metadata + rendered body to disk.
-/// Internal helper only.
-/// Caller must provide valid meta with id already set.
+/// Caller must provide valid meta with id and model already set.
 /// ----------------------------------------------------------------------
 act save_shard(meta, body)
-    id | :get_at(meta, "id")
+    id    | :get_at(meta, "id")
+    model | shard_model(meta)
 
-    path | shard_path(id)
+    path | shard_path_for(model, id)
 
-    ensure_shard_dir(id)
+    ensure_shard_dir_for(model, id)
 
     text | build_shard_text(meta, body)
 
@@ -120,7 +133,8 @@ xx
 /// ----------------------------------------------------------------------
 /// Create a new shard from metadata + rendered body.
 /// Domain files prepare metadata before calling this.
-/// The renderer prepares body before calling this.
+/// Graveyard injects framework id.
+/// Model is required so shard files are separated by shard type.
 /// ----------------------------------------------------------------------
 act create_shard(meta, body)
     :put_at!(meta, "id", :uuid_v7())
@@ -129,11 +143,11 @@ act create_shard(meta, body)
 xx
 
 /// ----------------------------------------------------------------------
-/// Delete a shard file by UUID.
+/// Delete a shard file by model + UUID.
 /// Does not remove index entries. indexes.gbln owns that.
 /// ----------------------------------------------------------------------
-act delete_shard(id)
-    path | shard_path(id)
+act delete_shard(model, id)
+    path | shard_path_for(model, id)
 
     if :file_exists(path)
         :delete_path!(path)
