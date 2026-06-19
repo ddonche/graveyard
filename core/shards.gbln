@@ -137,9 +137,23 @@ xx
 /// Model is required so shard files are separated by shard type.
 /// ----------------------------------------------------------------------
 act create_shard(meta, body)
+    created_at | :to_iso(:now())
+
     :put_at!(meta, "id", :uuid_v7())
+    :put_at!(meta, "created_at", created_at)
+    :put_at!(meta, "updated_at", created_at)
 
     save_shard(meta, body)
+
+    id | :get_at(meta, "id")
+    model | shard_model(meta)
+    path | shard_path_for(model, id)
+
+    if :file_exists(path)
+        return path
+    xx
+
+    return ..
 xx
 
 /// ----------------------------------------------------------------------
