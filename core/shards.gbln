@@ -1,0 +1,152 @@
+/// core/shards.gbln
+/// Graveyard shard lifecycle.
+///
+/// A shard is one portable rendered content unit.
+///
+/// This file owns:
+/// - shard IDs
+/// - shard file paths
+/// - shard frontmatter parsing
+/// - shard body extraction
+/// - shard writing
+/// - shard reading
+///
+/// This file does not own:
+/// - page assembly
+/// - blueprint logic
+/// - route matching
+/// - index/query behavior
+/// - auth/session behavior
+/// - domain-specific metadata validation
+///
+/// Domain files such as models/post.gbln, models/wiki_section.gbln,
+/// models/forum_reply.gbln, and models/comment.gbln define their own extra
+/// frontmatter fields. shards.gbln preserves those fields but does not know
+/// their meaning.
+
+use storage
+
+#graveyard::shard_fence | "^^^^"
+
+/// ----------------------------------------------------------------------
+/// Return the bucket directory name for a shard UUID.
+/// 8f3a... => 8f
+/// ----------------------------------------------------------------------
+act shard_bucket(id)
+    bucket_cfg | #graveyard::storage{"shard_bucket"}
+    chars      | bucket_cfg{"chars"}
+
+    return :slice(id, 0, chars)
+xx
+
+/// ----------------------------------------------------------------------
+/// Return canonical path for a shard UUID.
+/// content/shards/8f/8f3a....gbln
+/// ----------------------------------------------------------------------
+act shard_path(id)
+    bucket | shard_bucket(id)
+    dir | :path_join(#graveyard::storage{"shards"}, bucket)
+
+    return :path_join(dir, id + ".gbln")
+xx
+
+/// ----------------------------------------------------------------------
+/// Ensure the bucket directory for a shard exists.
+/// ----------------------------------------------------------------------
+act ensure_shard_dir(id)
+    bucket | shard_bucket(id)
+    dir | :path_join(#graveyard::storage{"shards"}, bucket)
+
+    :create_dir!(dir)
+xx
+
+/// ----------------------------------------------------------------------
+/// Parse raw shard text into { meta, body }.
+/// Uses the same ^^^^ frontmatter fence as Sheriff/Frontier.
+/// ----------------------------------------------------------------------
+act parse_shard(text)
+    fm_text | :keep_between(text, #graveyard::shard_fence, #graveyard::shard_fence)
+    body    | :ignore_blocks_first(text, #graveyard::shard_fence, #graveyard::shard_fence)
+    meta    | :to_map(fm_text)
+
+    return {
+        meta: meta,
+        body: body,
+    }
+xx
+
+/// ----------------------------------------------------------------------
+/// Build raw shard file text from meta + rendered body.
+/// Meta is written as YALL/frontmatter. Body is already-rendered partial HTML.
+/// ----------------------------------------------------------------------
+act build_shard_text(meta, body)
+    meta_text | :yall_write(meta)
+
+    return #graveyard::shard_fence + "\n" + meta_text + "\n" + #graveyard::shard_fence + "\n\n" + body
+xx
+
+/// ----------------------------------------------------------------------
+/// Read a shard by UUID.
+/// Returns { meta, body, path }.
+/// ----------------------------------------------------------------------
+act read_shard(id)
+    path | shard_path(id)
+
+    text | :read_text(path)
+    shard | parse_shard(text)
+
+    :update_at!(shard, "path", path)
+
+    return shard
+xx
+
+/// ----------------------------------------------------------------------
+/// Save shard metadata + rendered body to disk.
+/// Internal helper only.
+/// Caller must provide valid meta with id already set.
+/// ----------------------------------------------------------------------
+act save_shard(meta, body)
+    id | :get_at(meta, "id")
+
+    path | shard_path(id)
+
+    ensure_shard_dir(id)
+
+    text | build_shard_text(meta, body)
+
+    :write_text!(path, text)
+xx
+
+/// ----------------------------------------------------------------------
+/// Create a new shard from metadata + rendered body.
+/// Domain files prepare metadata before calling this.
+/// The renderer prepares body before calling this.
+/// ----------------------------------------------------------------------
+act create_shard(meta, body)
+    :put_at!(meta, "id", :uuid_v7())
+
+    save_shard(meta, body)
+xx
+
+/// ----------------------------------------------------------------------
+/// Delete a shard file by UUID.
+/// Does not remove index entries. indexes.gbln owns that.
+/// ----------------------------------------------------------------------
+act delete_shard(id)
+    path | shard_path(id)
+
+    if :file_exists(path)
+        :delete_path!(path)
+    xx
+xx
+
+/// ----------------------------------------------------------------------
+/// Convenience helpers.
+/// ----------------------------------------------------------------------
+act shard_meta(shard)
+    return shard{"meta"}
+xx
+
+act shard_body(shard)
+    return shard{"body"}
+xx

@@ -10,7 +10,7 @@
 ///
 /// Other core files read this contract and obey it.
 
-graveyard_storage | {
+#graveyard::storage | {
     root: ".",
     content: "content",
 
@@ -34,5 +34,5 @@ graveyard_storage | {
     writes: {
         mode: "atomic",
         temp_dir: ".graveyard/tmp",
-    }
+    },
 }

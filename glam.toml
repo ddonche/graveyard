@@ -1,0 +1,24 @@
+[glam]
+name = "graveyard"
+version = "0.1.0"
+author = "Dan Donche"
+description = "Goblin's no-DB flat-file web framework."
+license = "MIT"
+entry = "graveyard.gbln"
+
+[provides]
+actions = [
+    "graveyard::create_shard",
+    "graveyard::save_shard",
+    "graveyard::read_shard",
+    "graveyard::delete_shard",
+    "graveyard::shard_path",
+    "graveyard::shard_bucket",
+    "graveyard::shard_meta",
+    "graveyard::shard_body"
+]
+
+values = [
+    "#graveyard::storage",
+    "#graveyard::shard_fence"
+]
