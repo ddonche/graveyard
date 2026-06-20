@@ -1,4 +1,5 @@
 /// glams/graveyard/graveyard.gbln
 
 import "core/storage"
+import "core/models"
 import "core/shards"

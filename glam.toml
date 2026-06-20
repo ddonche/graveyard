@@ -12,13 +12,28 @@ actions = [
     "graveyard::save_shard",
     "graveyard::read_shard",
     "graveyard::delete_shard",
-    "graveyard::shard_path",
+    "graveyard::shard_path_for",
     "graveyard::shard_bucket",
     "graveyard::shard_meta",
-    "graveyard::shard_body"
+    "graveyard::shard_body",
+
+    "graveyard::model_registry_path",
+    "graveyard::registry_id",
+    "graveyard::load_models_registry",
+    "graveyard::save_models_registry",
+    "graveyard::load_model",
+    "graveyard::save_model",
+    "graveyard::model_id",
+    "graveyard::model_name",
+    "graveyard::register_model",
+    "graveyard::field_id",
+    "graveyard::register_field",
+    "graveyard::register_model_with_fields"
 ]
 
 values = [
     "#graveyard::storage",
-    "#graveyard::shard_fence"
+    "#graveyard::shard_fence",
+    "#graveyard::models_dir",
+    "#graveyard::models_registry_path"
 ]

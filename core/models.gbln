@@ -1,0 +1,177 @@
+/// core/models.gbln
+/// Graveyard model registry.
+
+import "storage"
+
+#graveyard::models_dir | :path_join(#graveyard::storage{"indexes"}, "models")
+#graveyard::models_registry_path | :path_join(#graveyard::storage{"indexes"}, "models.yall")
+
+act empty_models_registry()
+    return {
+        "next_model_id": 1,
+        "models": {
+            "system": {
+                "id": 0,
+                "name": "system",
+                "status": "reserved",
+            },
+        },
+    }
+xx
+
+act load_models_registry()
+    if :file_exists(#graveyard::models_registry_path)
+        return :yall_parse_file(#graveyard::models_registry_path)
+    xx
+
+    :create_dir!(#graveyard::storage{"indexes"})
+    :create_dir!(#graveyard::models_dir)
+
+    registry | empty_models_registry()
+
+    :yall_write_file(#graveyard::models_registry_path, registry)
+
+    return registry
+xx
+
+act save_models_registry(registry)
+    :yall_write_file(#graveyard::models_registry_path, registry)
+xx
+
+act empty_model_registry(model_id, model)
+    return {
+        "id": model_id,
+        "name": model,
+        "fields": {},
+    }
+xx
+
+act load_model(model)
+    path | :path_join(#graveyard::models_dir, model + ".yall")
+
+    if :file_exists(path) == false => return ..
+
+    return :yall_parse_file(path)
+xx
+
+act save_model(model, registry)
+    path | :path_join(#graveyard::models_dir, model + ".yall")
+
+    :yall_write_file(path, registry)
+xx
+
+act model_id(model)
+    registry | load_models_registry()
+    models | registry{"models"}
+
+    if :has(models, model) == false => send ..
+
+    item | models{model}
+
+    return item{"id"}
+xx
+
+act model_name(model_id)
+    registry | load_models_registry()
+
+    repeat registry{"models"} as model, item
+        if item{"id"} == model_id => return model
+    xx
+
+    return ..
+xx
+
+act register_model(model)
+    existing | model_id(model)
+
+    if !existing.nix? => return existing
+
+    registry | load_models_registry()
+
+    next_id | registry{"next_model_id"}
+    new_id  | next_id
+    models  | registry{"models"}
+
+    item | {
+        "id": new_id,
+        "name": model,
+        "status": "active",
+        "next_field_id": 1,
+    }
+
+    :put_at!(models, model, item)
+    :update_at!(registry, "next_model_id", next_id + 1)
+    :update_at!(registry, "models", models)
+
+    save_models_registry(registry)
+
+    model_registry | empty_model_registry(new_id, model)
+    save_model(model, model_registry)
+
+    return new_id
+xx
+
+act field_id(model, field)
+    registry | load_model(model)
+
+    if registry.nix? => send ..
+
+    fields | registry{"fields"}
+
+    if :has(fields, field) == false => send ..
+
+    item | fields{field}
+
+    return item{"id"}
+xx
+
+act register_field(model, field, field_type)
+    existing | field_id(model, field)
+
+    if !existing.nix? => return existing
+
+    models_registry | load_models_registry()
+    models | models_registry{"models"}
+    model_item | models{model}
+
+    next_id | model_item{"next_field_id"}
+    new_id  | next_id
+
+    registry | load_model(model)
+
+    if registry.nix? => send ..
+
+    fields | registry{"fields"}
+
+    item | {
+        "id": new_id,
+        "name": field,
+        "type": field_type,
+        "status": "active",
+    }
+
+    :put_at!(fields, field, item)
+    :update_at!(registry, "fields", fields)
+
+    :update_at!(model_item, "next_field_id", next_id + 1)
+    :update_at!(models, model, model_item)
+    :update_at!(models_registry, "models", models)
+
+    save_model(model, registry)
+    save_models_registry(models_registry)
+
+    return new_id
+xx
+
+act register_model_with_fields(model, fields)
+    id | register_model(model)
+
+    repeat fields as field
+        field_name | field{"name"}
+        field_type | field{"type"}
+
+        register_field(model, field_name, field_type)
+    xx
+
+    return id
+xx

@@ -3,79 +3,132 @@
 ///
 /// A shard is one portable rendered content unit.
 ///
-/// This file owns:
-/// - shard IDs
-/// - shard file paths
-/// - shard frontmatter parsing
-/// - shard body extraction
-/// - shard writing
-/// - shard reading
+/// Current no-SQLite phase:
+/// - shard IDs are allocated from a file-backed per-model allocator
+/// - SQLite will later replace only next_shard_id(model_key)
 ///
-/// This file does not own:
-/// - page assembly
-/// - blueprint logic
-/// - route matching
-/// - index/query behavior
-/// - auth/session behavior
-/// - domain-specific metadata validation
+/// Path shape:
+/// content/shards/{model_key}/{bucket}/{id}/v{version}.gbln
 ///
-/// Domain files such as models/post.gbln, models/wiki_section.gbln,
-/// models/forum_reply.gbln, and models/comment.gbln define their own extra
-/// frontmatter fields. shards.gbln preserves those fields but does not know
-/// their meaning.
+/// Example:
+/// content/shards/post/1/1/v1.gbln
+///
+/// Later, when model registry exists:
+/// content/shards/0002/48/4812/v1.gbln
 
 import "storage"
 
 #graveyard::shard_fence | "^^^^"
 
 /// ----------------------------------------------------------------------
-/// Return the bucket directory name for a shard UUID.
-/// 019e... => 01
-/// ----------------------------------------------------------------------
-act shard_bucket(id)
-    bucket_cfg | #graveyard::storage{"shard_bucket"}
-    chars      | bucket_cfg{"chars"}
-
-    return :slice(id, 0, chars)
-xx
-
-/// ----------------------------------------------------------------------
-/// Return the shard model/type from metadata.
-/// Graveyard requires model.
-/// post, comment, wiki_section, forum_reply, etc.
+/// Return shard model/type from metadata.
+/// App/model must provide model.
+/// Example: post, comment, wiki_section
 /// ----------------------------------------------------------------------
 act shard_model(meta)
     return :get_at(meta, "model")
 xx
 
 /// ----------------------------------------------------------------------
-/// Return canonical path for a shard UUID under its model/type.
-/// content/shards/post/01/019e....gbln
+/// Return model storage key.
+/// For now this falls back to model name.
+/// Later this should be the registered model_id: 0002, 0003, etc.
 /// ----------------------------------------------------------------------
-act shard_path_for(model, id)
-    bucket | shard_bucket(id)
+act shard_model_key(meta)
+    model_id | :get_at(meta, "model_id")
 
-    model_dir  | :path_join(#graveyard::storage{"shards"}, model)
-    bucket_dir | :path_join(model_dir, bucket)
+    if model_id.nix? => return shard_model(meta)
 
-    return :path_join(bucket_dir, id + ".gbln")
+    return model_id
 xx
 
 /// ----------------------------------------------------------------------
-/// Ensure the bucket directory for a model shard exists.
+/// Return bucket directory name for shard ID.
+/// Current fallback: first configured chars of numeric ID as text.
 /// ----------------------------------------------------------------------
-act ensure_shard_dir_for(model, id)
+act shard_bucket(id)
+    bucket_cfg | #graveyard::storage{"shard_bucket"}
+    chars      | bucket_cfg{"chars"}
+    id_text | :str(id)
+
+    return :slice(id_text, 0, chars)
+xx
+
+/// ----------------------------------------------------------------------
+/// Return allocator file path for a model.
+/// content/indexes/allocators/post.gbln
+/// ----------------------------------------------------------------------
+act allocator_path_for(model_key)
+    alloc_dir | :path_join(#graveyard::storage{"indexes"}, "allocators")
+
+    return :path_join(alloc_dir, model_key + ".gbln")
+xx
+
+/// ----------------------------------------------------------------------
+/// Allocate next shard ID for a model.
+/// This is the temporary no-SQLite allocator.
+/// SQLite later replaces this action only.
+/// ----------------------------------------------------------------------
+act next_shard_id(model_key)
+    alloc_dir  | :path_join(#graveyard::storage{"indexes"}, "allocators")
+    alloc_path | allocator_path_for(model_key)
+
+    :create_dir!(alloc_dir)
+
+    if :file_exists(alloc_path) == false
+        cfg | {
+            "next_id": 2,
+        }
+
+        :write_text!(alloc_path, :yall_write(cfg))
+
+        return 1
+    xx
+
+    cfg     | :yall_parse_file(alloc_path)
+    next_id | cfg{"next_id"}
+
+    new_cfg | {
+        "next_id": next_id + 1,
+    }
+
+    :write_text!(alloc_path, :yall_write(new_cfg))
+
+    return next_id
+xx
+
+/// ----------------------------------------------------------------------
+/// Return canonical path for a shard.
+/// content/shards/{model_key}/{bucket}/{id}/v{version}.gbln
+/// ----------------------------------------------------------------------
+act shard_path_for(model_key, id, version)
     bucket | shard_bucket(id)
 
-    model_dir  | :path_join(#graveyard::storage{"shards"}, model)
+    model_dir  | :path_join(#graveyard::storage{"shards"}, model_key)
     bucket_dir | :path_join(model_dir, bucket)
+    id_dir     | :path_join(bucket_dir, id + "")
+    file_name  | "v" + version + ".gbln"
 
+    return :path_join(id_dir, file_name)
+xx
+
+/// ----------------------------------------------------------------------
+/// Ensure directory exists for a shard.
+/// ----------------------------------------------------------------------
+act ensure_shard_dir_for(model_key, id)
+    bucket | shard_bucket(id)
+
+    model_dir  | :path_join(#graveyard::storage{"shards"}, model_key)
+    bucket_dir | :path_join(model_dir, bucket)
+    id_dir     | :path_join(bucket_dir, id + "")
+
+    :create_dir!(model_dir)
     :create_dir!(bucket_dir)
+    :create_dir!(id_dir)
 xx
 
 /// ----------------------------------------------------------------------
 /// Parse raw shard text into { meta, body }.
-/// Uses the same ^^^^ frontmatter fence as Sheriff/Frontier.
 /// ----------------------------------------------------------------------
 act parse_shard(text)
     fm_text | :keep_between(text, #graveyard::shard_fence, #graveyard::shard_fence)
@@ -90,7 +143,6 @@ xx
 
 /// ----------------------------------------------------------------------
 /// Build raw shard file text from meta + rendered body.
-/// Meta is written as YALL/frontmatter. Body is already-rendered partial HTML.
 /// ----------------------------------------------------------------------
 act build_shard_text(meta, body)
     meta_text | :yall_write(meta)
@@ -99,11 +151,10 @@ act build_shard_text(meta, body)
 xx
 
 /// ----------------------------------------------------------------------
-/// Read a shard by model + UUID.
-/// Returns { meta, body, path }.
+/// Read a shard by model key + ID + version.
 /// ----------------------------------------------------------------------
-act read_shard(model, id)
-    path | shard_path_for(model, id)
+act read_shard(model_key, id, version)
+    path | shard_path_for(model_key, id, version)
 
     text  | :read_text(path)
     shard | parse_shard(text)
@@ -115,15 +166,16 @@ xx
 
 /// ----------------------------------------------------------------------
 /// Save shard metadata + rendered body to disk.
-/// Caller must provide valid meta with id and model already set.
+/// Caller must provide id, model/model_key, and version.
 /// ----------------------------------------------------------------------
 act save_shard(meta, body)
-    id    | :get_at(meta, "id")
-    model | shard_model(meta)
+    id        | :get_at(meta, "id")
+    version   | :get_at(meta, "version")
+    model_key | shard_model_key(meta)
 
-    path | shard_path_for(model, id)
+    path | shard_path_for(model_key, id, version)
 
-    ensure_shard_dir_for(model, id)
+    ensure_shard_dir_for(model_key, id)
 
     text | build_shard_text(meta, body)
 
@@ -132,22 +184,28 @@ xx
 
 /// ----------------------------------------------------------------------
 /// Create a new shard from metadata + rendered body.
-/// Domain files prepare metadata before calling this.
-/// Graveyard injects framework id.
-/// Model is required so shard files are separated by shard type.
+/// Graveyard injects:
+/// - id
+/// - version
+/// - created_at
+/// - updated_at
+///
+/// Model owns domain fields.
+/// SQLite later replaces next_shard_id().
 /// ----------------------------------------------------------------------
 act create_shard(meta, body)
     created_at | :to_iso(:now())
+    model_key  | shard_model_key(meta)
+    id         | next_shard_id(model_key)
 
-    :put_at!(meta, "id", :uuid_v7())
+    :put_at!(meta, "id", id)
+    :put_at!(meta, "version", 1)
     :put_at!(meta, "created_at", created_at)
     :put_at!(meta, "updated_at", created_at)
 
     save_shard(meta, body)
 
-    id | :get_at(meta, "id")
-    model | shard_model(meta)
-    path | shard_path_for(model, id)
+    path | shard_path_for(model_key, id, 1)
 
     if :file_exists(path)
         return path
@@ -157,15 +215,13 @@ act create_shard(meta, body)
 xx
 
 /// ----------------------------------------------------------------------
-/// Delete a shard file by model + UUID.
+/// Delete a shard file by model key + ID + version.
 /// Does not remove index entries. indexes.gbln owns that.
 /// ----------------------------------------------------------------------
-act delete_shard(model, id)
-    path | shard_path_for(model, id)
+act delete_shard(model_key, id, version)
+    path | shard_path_for(model_key, id, version)
 
-    if :file_exists(path)
-        :delete_path!(path)
-    xx
+    if :file_exists(path) => :delete_path!(path)
 xx
 
 /// ----------------------------------------------------------------------
