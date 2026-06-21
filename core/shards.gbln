@@ -17,6 +17,7 @@
 /// content/shards/0002/48/4812/v1.gbln
 
 import "storage"
+import "models"
 
 #graveyard::shard_fence | "^^^^"
 
@@ -39,7 +40,7 @@ act shard_model_key(meta)
 
     if model_id.nix? => return shard_model(meta)
 
-    return model_id
+    return :str(model_id)
 xx
 
 /// ----------------------------------------------------------------------
@@ -195,9 +196,18 @@ xx
 /// ----------------------------------------------------------------------
 act create_shard(meta, body)
     created_at | :to_iso(:now())
-    model_key  | shard_model_key(meta)
-    id         | next_shard_id(model_key)
+    model      | shard_model(meta)
 
+    if model.nix? => send ..
+
+    mid | models::model_id(model)
+
+    if mid.nix? => send ..
+
+    model_key | :str(mid)
+    id        | next_shard_id(model_key)
+
+    :put_at!(meta, "model_id", mid)
     :put_at!(meta, "id", id)
     :put_at!(meta, "version", 1)
     :put_at!(meta, "created_at", created_at)

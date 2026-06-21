@@ -1,0 +1,221 @@
+/// core/generator.gbln
+/// Graveyard model file generator.
+///
+/// Reads content/indexes/models/{model}.yall and writes:
+/// - actions/{model}.gbln
+/// - views/{model}/new.gbln
+///
+/// Generated files are project files. Do not edit them by hand.
+
+import "models"
+
+act is_active_field(field)
+    if field.nix? => return false
+
+    status | field{"status"}
+
+    if status.nix? => return true
+    if status == "active" => return true
+
+    return false
+xx
+
+act ensure_generated_dirs(model)
+    actions_dir | "actions"
+    views_dir   | "views"
+    model_views | :path_join(views_dir, model)
+
+    if :file_exists(actions_dir) == false
+        :create_dir!(actions_dir)
+    xx
+
+    if :file_exists(views_dir) == false
+        :create_dir!(views_dir)
+    xx
+
+    if :file_exists(model_views) == false
+        :create_dir!(model_views)
+    xx
+xx
+
+act build_action_file(model, model_registry)
+    fields | model_registry{"fields"}
+
+    header | """
+/// actions/{model}.gbln
+/// Generated from Graveyard model: {model}
+/// Do not edit by hand. Regenerate from the model registry.
+
+use graveyard
+
+"""
+
+    form_helper | """
+act form_get(form, key)
+    prefix | key + "="
+
+    for pair in :split(form, "&")
+        if :starts_with(pair, prefix)
+            value | :keep_after(pair, prefix)
+            parts | :split(value, "+")
+            value |= :join(parts, " ")
+            return value
+        xx
+    xx
+
+    return ..
+xx
+
+"""
+
+    request_guard | """
+method | :req_method()
+
+if method != "POST"
+    return "Method Not Allowed"
+xx
+
+form | :req_body()
+
+"""
+
+    meta_start | """
+meta | \{
+    "model": "{model}",
+\}
+
+field_value | ..
+
+"""
+
+    field_parts | []
+    field_names | :keys(fields)
+
+    repeat field_names as field_name
+        field | fields{field_name}
+
+        if is_active_field(field) == false => skip
+
+        field_code | """
+    field_value |= form_get(form, "{field_name}")
+    :put_at!(meta, "{field_name}", field_value)
+
+    """
+
+        :put_last!(field_parts, field_code)
+    xx
+
+    fields_code | :pack(field_parts)
+
+    finish | """
+graveyard::create_shard(meta, "")
+
+:set_status(302)
+:set_header("Location", "/views/{model}/new.gbln?created=1")
+
+return ..
+"""
+
+    return header + form_helper + request_guard + meta_start + fields_code + finish
+xx
+
+act build_form_field(field_name, field)
+    field_type | field{"type"}
+    label      | field_name.title
+
+    if field_type == "long_text"
+        return """
+        <p>
+            <label>{label}</label><br>
+            <textarea name="{field_name}"></textarea>
+        </p>
+
+"""
+    xx
+
+    return """
+        <p>
+            <label>{label}</label><br>
+            <input type="text" name="{field_name}">
+        </p>
+
+"""
+xx
+
+act build_new_view_file(model, model_registry)
+    title  | model.title
+    fields | model_registry{"fields"}
+
+    header | """
+<\{ render \}>
+
+<\{ 
+query | :req_query()
+created | :contains(query, "created=1")
+\}>
+
+<!doctype html>
+<html>
+<head>
+    <title>New {title}</title>
+</head>
+<body>
+    <h1>New {title}</h1>
+
+    <\{ if created \}>
+        <p><strong>Shard created.</strong></p>
+    <\{ xx \}>
+
+    <form method="POST" action="/actions/{model}.gbln">
+"""
+
+    field_parts | []
+    field_names | :keys(fields)
+
+    repeat field_names as field_name
+        field | fields{field_name}
+
+        if is_active_field(field) == false => skip
+
+        field_html | build_form_field(field_name, field)
+
+        :put_last!(field_parts, field_html)
+    xx
+
+    fields_html | :pack(field_parts)
+
+    footer | """
+        <p>
+            <button type="submit">Create {title}</button>
+        </p>
+    </form>
+</body>
+</html>
+"""
+
+    return header + fields_html + footer
+xx
+
+act write_generated_model_files(model)
+    model_path | :path_join(#graveyard::models_dir, model + ".yall")
+
+    if :file_exists(model_path) == false
+        return false
+    xx
+
+    model_registry | :yall_parse_file(model_path)
+
+    ensure_generated_dirs(model)
+
+    :write_text!(
+        :path_join("actions", model + ".gbln"),
+        build_action_file(model, model_registry)
+    )
+
+    :write_text!(
+        :path_join(:path_join("views", model), "new.gbln"),
+        build_new_view_file(model, model_registry)
+    )
+
+    return true
+xx

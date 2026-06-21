@@ -28,7 +28,9 @@ actions = [
     "graveyard::register_model",
     "graveyard::field_id",
     "graveyard::register_field",
-    "graveyard::register_model_with_fields"
+    "graveyard::register_model_with_fields",
+
+    "graveyard::write_generated_model_files"
 ]
 
 values = [
