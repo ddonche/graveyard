@@ -56,9 +56,7 @@ act form_get(form, key)
     for pair in :split(form, "&")
         if :starts_with(pair, prefix)
             value | :keep_after(pair, prefix)
-            parts | :split(value, "+")
-            value |= :join(parts, " ")
-            return value
+            return :url_decode(value)
         xx
     xx
 
