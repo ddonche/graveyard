@@ -36,11 +36,7 @@ xx
 /// Later this should be the registered model_id: 0002, 0003, etc.
 /// ----------------------------------------------------------------------
 act shard_model_key(meta)
-    model_id | :get_at(meta, "model_id")
-
-    if model_id.nix? => return shard_model(meta)
-
-    return :str(model_id)
+    return shard_model(meta)
 xx
 
 /// ----------------------------------------------------------------------
@@ -134,7 +130,7 @@ xx
 act parse_shard(text)
     fm_text | :keep_between(text, #graveyard::shard_fence, #graveyard::shard_fence)
     body    | :ignore_blocks_first(text, #graveyard::shard_fence, #graveyard::shard_fence)
-    meta    | :to_map(fm_text)
+    meta    | :yall_parse(fm_text, "shard frontmatter")
 
     return {
         meta: meta,

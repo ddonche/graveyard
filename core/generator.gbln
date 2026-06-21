@@ -160,6 +160,15 @@ act build_form_field(field_name, field)
 """
 xx
 
+act build_show_field(field_name, field)
+    value_token | "<{ " + field_name + " }>"
+
+    return """
+        <p>""" + value_token + """</p>
+
+"""
+xx
+
 act build_new_view_file(model, model_registry)
     title  | model.title
     fields | model_registry{"fields"}
@@ -229,6 +238,102 @@ created | :contains(query, "created=1")
     return header + fields_html + footer
 xx
 
+act build_show_view_file(model, model_registry)
+    title  | model.title
+    fields | model_registry{"fields"}
+
+    header | """
+<\{ render \}>
+
+<\{
+use graveyard
+
+act query_get(query, key)
+    prefix | key + "="
+
+    for pair in :split(query, "&")
+        if :starts_with(pair, prefix)
+            value | :keep_after(pair, prefix)
+            return :url_decode(value)
+        xx
+    xx
+
+    return ..
+xx
+
+query | :req_query()
+id    | query_get(query, "id")
+
+shard | graveyard::read_shard("{model}", id, 1)
+meta       | shard{"meta"}
+shard_body | shard{"body"}
+"""
+
+    var_parts | []
+    field_parts | []
+    field_names | :keys(fields)
+    max_field_id | 0
+
+    repeat field_names as field_name
+        field | fields{field_name}
+        field_id | field{"id"}
+
+        if field_id > max_field_id
+            max_field_id |= field_id
+        xx
+    xx
+
+    repeat max_field_id
+        wanted_id | idx + 1
+
+        repeat field_names as field_name
+            field | fields{field_name}
+
+            if field{"id"} != wanted_id => skip
+            if is_active_field(field) == false => skip
+
+            field_type | field{"type"}
+
+            if field_type == "long_text"
+                var_code | field_name + " | shard_body\n"
+            xx
+
+            if field_type != "long_text"
+                var_code | field_name + " | meta{\"" + field_name + "\"}\n"
+            xx
+
+            :put_last!(var_parts, var_code)
+
+            field_html | build_show_field(field_name, field)
+
+            :put_last!(field_parts, field_html)
+        xx
+    xx
+
+    vars_code | :join(var_parts, "")
+    fields_html | :join(field_parts, "")
+
+    middle | """
+\}>
+
+<!doctype html>
+<html>
+<head>
+    <title>{title}</title>
+</head>
+<body>
+    <h1>{title}</h1>
+
+"""
+
+    footer | """
+</body>
+</html>
+"""
+
+    return header + vars_code + middle + fields_html + footer
+xx
+
 act write_generated_model_files(model)
     model_path | :path_join(#graveyard::models_dir, model + ".yall")
 
@@ -248,6 +353,11 @@ act write_generated_model_files(model)
     :write_text!(
         :path_join(:path_join("views", model), "new.gbln"),
         build_new_view_file(model, model_registry)
+    )
+
+    :write_text!(
+        :path_join(:path_join("views", model), "show.gbln"),
+        build_show_view_file(model, model_registry)
     )
 
     return true
