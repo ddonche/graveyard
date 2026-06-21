@@ -200,11 +200,11 @@ act create_shard(meta, body)
 
     if model.nix? => send ..
 
-    mid | models::model_id(model)
+    mid | graveyard::model_id(model)
 
     if mid.nix? => send ..
 
-    model_key | :str(mid)
+    model_key | model
     id        | next_shard_id(model_key)
 
     :put_at!(meta, "model_id", mid)

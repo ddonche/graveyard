@@ -151,13 +151,18 @@ act register_field(model, field, field_type)
     }
 
     :put_at!(fields, field, item)
-    :update_at!(registry, "fields", fields)
+
+    new_registry | {
+        "id": registry{"id"},
+        "name": registry{"name"},
+        "fields": fields,
+    }
 
     :update_at!(model_item, "next_field_id", next_id + 1)
     :update_at!(models, model, model_item)
     :update_at!(models_registry, "models", models)
 
-    save_model(model, registry)
+    save_model(model, new_registry)
     save_models_registry(models_registry)
 
     return new_id
