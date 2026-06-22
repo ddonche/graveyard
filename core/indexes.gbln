@@ -1,0 +1,156 @@
+/// core/indexes.gbln
+/// Graveyard index lifecycle.
+///
+/// Minimal V1: one ordered list of {id, version} entries per model.
+/// Each entry's "version" is that shard's current (latest) version —
+/// updated every time the shard is edited. This is the file-based
+/// stand-in for what becomes a SQLite catalog row's current_version
+/// field later; the shape is deliberately the same so the eventual
+/// move to SQLite doesn't change what callers read.
+///
+/// File-backed for now. SQLite later becomes the primary index;
+/// this file-based index remains as the rebuildable fallback per spec.
+///
+/// Path shape:
+/// .graveyard/indexes/{model}.yall
+///
+/// Distinct from schema (#graveyard::storage{"schema"}), which holds
+/// developer-defined model/field shape. Indexes are derived from shards
+/// and are never the source of truth — if an index file is missing or
+/// corrupt, it can be rebuilt by scanning shard files for the model
+/// (rebuild not yet implemented).
+///
+/// Note: a transcluding blueprint that wants to lock a reference to a
+/// specific past version (rather than always following latest) does
+/// that at the blueprint level by storing an explicit version marker
+/// — it does not touch or depend on this index's current_version.
+
+import "storage"
+
+/// ----------------------------------------------------------------------
+/// Return the index file path for a model.
+/// ----------------------------------------------------------------------
+act index_path_for(model)
+    return :path_join(#graveyard::storage{"indexes"}, model + ".yall")
+xx
+
+/// ----------------------------------------------------------------------
+/// Read the ordered list of {id, version} entries for a model.
+/// Returns an empty list if no index exists yet.
+/// ----------------------------------------------------------------------
+act read_index(model)
+    path | index_path_for(model)
+
+    if :file_exists(path) == false
+        return []
+    xx
+
+    idx     | :yall_parse_file(path)
+    entries | idx{"entries"}
+
+    if entries.nix?
+        return []
+    xx
+
+    return entries
+xx
+
+/// ----------------------------------------------------------------------
+/// Write the ordered list of {id, version} entries for a model.
+/// ----------------------------------------------------------------------
+act write_index(model, entries)
+    path | index_path_for(model)
+
+    :create_dir!(#graveyard::storage{"indexes"})
+
+    idx | {
+        "entries": entries,
+    }
+
+    :yall_write_file(path, idx)
+xx
+
+/// ----------------------------------------------------------------------
+/// Find the index of an entry by shard id within an entries list.
+/// Returns nix if not found.
+/// ----------------------------------------------------------------------
+act find_entry_pos(entries, id)
+    pos | 0
+
+    repeat entries as entry
+        if entry{"id"} == id => return pos
+        pos |= pos + 1
+    xx
+
+    return ..
+xx
+
+/// ----------------------------------------------------------------------
+/// Look up the current (latest) version for a shard id.
+/// This is the file-index implementation of GYBN's @L resolution.
+/// Returns nix if the id isn't in the index.
+/// ----------------------------------------------------------------------
+act latest_version(model, id)
+    entries | read_index(model)
+    pos     | find_entry_pos(entries, id)
+
+    if pos.nix? => return ..
+
+    entry | entries{pos}
+
+    return entry{"version"}
+xx
+
+/// ----------------------------------------------------------------------
+/// Add a new shard id to a model's index at version 1.
+/// Called once, right after a shard is successfully created.
+/// ----------------------------------------------------------------------
+act append_to_index(model, id)
+    entries | read_index(model)
+
+    :put_last!(entries, {
+        "id": id,
+        "version": 1,
+    })
+
+    write_index(model, entries)
+xx
+
+/// ----------------------------------------------------------------------
+/// Update the current version for an existing shard id.
+/// Called every time a shard is edited (a new version is written).
+/// No-op if the id isn't found in the index (shouldn't happen in
+/// normal operation, but doesn't error so a stale call can't crash).
+/// ----------------------------------------------------------------------
+act set_current_version(model, id, version)
+    entries | read_index(model)
+    pos     | find_entry_pos(entries, id)
+
+    if pos.nix? => send ..
+
+    entry | entries{pos}
+
+    :update_at!(entry, "version", version)
+    :update_at!(entries, pos, entry)
+
+    write_index(model, entries)
+xx
+
+/// ----------------------------------------------------------------------
+/// Remove a shard id from a model's index entirely.
+/// Called when the LAST remaining version of a shard is deleted —
+/// callers (shards.gbln) are responsible for that check beforehand.
+/// ----------------------------------------------------------------------
+act remove_from_index(model, id)
+    entries | read_index(model)
+
+    out | []
+
+    repeat entries as entry
+        if entry{"id"} != id
+            :put_last!(out, entry)
+        xx
+    xx
+
+    write_index(model, out)
+xx

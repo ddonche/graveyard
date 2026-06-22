@@ -16,7 +16,8 @@
 
     pages: "content/pages",
     shards: "content/shards",
-    indexes: "content/indexes",
+    schema: ".graveyard/schema",
+    indexes: ".graveyard/indexes",
 
     private: ".graveyard",
 

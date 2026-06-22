@@ -1,9 +1,11 @@
 /// core/generator.gbln
 /// Graveyard model file generator.
 ///
-/// Reads content/indexes/models/{model}.yall and writes:
-/// - actions/{model}.gbln
+/// Reads schema/models/{model}.yall and writes:
+/// - actions/{model}.gbln       (create + update, Rails-controller style)
 /// - views/{model}/new.gbln
+/// - views/{model}/show.gbln
+/// - views/{model}/edit.gbln
 ///
 /// Generated files are project files. Do not edit them by hand.
 
@@ -45,15 +47,31 @@ act build_action_file(model, model_registry)
 /// actions/{model}.gbln
 /// Generated from Graveyard model: {model}
 /// Do not edit by hand. Regenerate from the model registry.
+///
+/// POST with no ?id= -> create
+/// POST with ?id=N   -> update
 
 use graveyard
 """
 
-    form_helper | """
+    helpers | """
 act form_get(form, key)
     prefix | key + "="
 
     for pair in :split(form, "&")
+        if :starts_with(pair, prefix)
+            value | :keep_after(pair, prefix)
+            return :url_decode(value)
+        xx
+    xx
+
+    return ..
+xx
+
+act query_get(query, key)
+    prefix | key + "="
+
+    for pair in :split(query, "&")
         if :starts_with(pair, prefix)
             value | :keep_after(pair, prefix)
             return :url_decode(value)
@@ -71,13 +89,20 @@ if method != "POST"
     return "Method Not Allowed"
 xx
 
-form | :req_body()
+form  | :req_body()
+query | :req_query()
+id_raw | query_get(query, "id")
+id     | ..
+
+if id_raw.nix? == false
+    id |= :int(id_raw)
+xx
+
 shard_body | ..
 """
 
     var_parts | []
     meta_parts | []
-    body_var | "form"
 
     field_names | :keys(fields)
     max_field_id | 0
@@ -119,22 +144,41 @@ shard_body | ..
     vars_code | :join(var_parts, "")
     meta_fields | :join(meta_parts, "")
 
-    meta_start | """
-meta | \{
-    "model": "{model}",
-    {meta_fields}\}
+    branch_start | """
+
+if id.nix?
 """
 
-    finish | """
-graveyard::create_shard(meta, shard_body)
+    create_meta | """
+    meta | \{
+        "model": "{model}",
+        {meta_fields}\}
+"""
+
+    create_finish | """
+    new_id | graveyard::create_shard(meta, shard_body)
+
+    :set_status(302)
+    :set_header("Location", "/views/{model}/show.gbln?id=" + new_id)
+
+    return ..
+xx
+"""
+
+    update_meta | """
+
+meta_updates | \{
+    {meta_fields}\}
+
+graveyard::update_shard("{model}", id, meta_updates, shard_body)
 
 :set_status(302)
-:set_header("Location", "/views/{model}/new.gbln?created=1")
+:set_header("Location", "/views/{model}/show.gbln?id=" + id)
 
 return ..
 """
 
-    return header + form_helper + request_guard + vars_code + meta_start + finish
+    return header + helpers + request_guard + vars_code + branch_start + create_meta + create_finish + update_meta
 xx
 
 act build_form_field(field_name, field)
@@ -176,11 +220,6 @@ act build_new_view_file(model, model_registry)
     header | """
 <\{ render \}>
 
-<\{ 
-query | :req_query()
-created | :contains(query, "created=1")
-\}>
-
 <!doctype html>
 <html>
 <head>
@@ -188,10 +227,6 @@ created | :contains(query, "created=1")
 </head>
 <body>
     <h1>New {title}</h1>
-
-    <\{ if created \}>
-        <p><strong>Shard created.</strong></p>
-    <\{ xx \}>
 
     <form method="POST" action="/actions/{model}.gbln">
 """
@@ -262,9 +297,16 @@ act query_get(query, key)
 xx
 
 query | :req_query()
-id    | query_get(query, "id")
+id_raw | query_get(query, "id")
+id     | ..
 
-shard | graveyard::read_shard("{model}", id, 1)
+if id_raw.nix? == false
+    id |= :int(id_raw)
+xx
+
+version | graveyard::latest_version("{model}", id)
+
+shard | graveyard::read_shard("{model}", id, version)
 meta       | shard{"meta"}
 shard_body | shard{"body"}
 """
@@ -334,6 +376,140 @@ shard_body | shard{"body"}
     return header + vars_code + middle + fields_html + footer
 xx
 
+act build_edit_field(field_name, field)
+    field_type | field{"type"}
+    label      | field_name.title
+    value_token | "<{ " + field_name + " }>"
+
+    if field_type == "long_text"
+        return """
+        <p>
+            <label>{label}</label><br>
+            <textarea name="{field_name}">""" + value_token + """</textarea>
+        </p>
+
+"""
+    xx
+
+    quote | "\""
+
+    return """
+        <p>
+            <label>{label}</label><br>
+            <input type="text" name="{field_name}" value=""" + quote + value_token + quote + """>
+        </p>
+
+"""
+xx
+
+act build_edit_view_file(model, model_registry)
+    title  | model.title
+    fields | model_registry{"fields"}
+
+    header | """
+<\{ render \}>
+
+<\{
+use graveyard
+
+act query_get(query, key)
+    prefix | key + "="
+
+    for pair in :split(query, "&")
+        if :starts_with(pair, prefix)
+            value | :keep_after(pair, prefix)
+            return :url_decode(value)
+        xx
+    xx
+
+    return ..
+xx
+
+query | :req_query()
+id_raw | query_get(query, "id")
+id     | ..
+
+if id_raw.nix? == false
+    id |= :int(id_raw)
+xx
+
+version | graveyard::latest_version("{model}", id)
+
+shard | graveyard::read_shard("{model}", id, version)
+meta       | shard{"meta"}
+shard_body | shard{"body"}
+"""
+
+    var_parts | []
+    field_parts | []
+    field_names | :keys(fields)
+    max_field_id | 0
+
+    repeat field_names as field_name
+        field | fields{field_name}
+        field_id | field{"id"}
+
+        if field_id > max_field_id
+            max_field_id |= field_id
+        xx
+    xx
+
+    repeat max_field_id
+        wanted_id | idx + 1
+
+        repeat field_names as field_name
+            field | fields{field_name}
+
+            if field{"id"} != wanted_id => skip
+            if is_active_field(field) == false => skip
+
+            field_type | field{"type"}
+
+            if field_type == "long_text"
+                var_code | field_name + " | shard_body\n"
+            xx
+
+            if field_type != "long_text"
+                var_code | field_name + " | meta{\"" + field_name + "\"}\n"
+            xx
+
+            :put_last!(var_parts, var_code)
+
+            field_html | build_edit_field(field_name, field)
+
+            :put_last!(field_parts, field_html)
+        xx
+    xx
+
+    vars_code | :join(var_parts, "")
+    fields_html | :join(field_parts, "")
+
+    middle | """
+\}>
+
+<!doctype html>
+<html>
+<head>
+    <title>Edit {title}</title>
+</head>
+<body>
+    <h1>Edit {title}</h1>
+
+    <form method="POST" action="/actions/{model}.gbln?id=<{ id }>">
+"""
+
+    footer | """
+        <p>
+            <button type="submit">Save {title}</button>
+        </p>
+    </form>
+</body>
+</html>
+"""
+
+    return header + vars_code + middle + fields_html + footer
+xx
+
 act write_generated_model_files(model)
     model_path | :path_join(#graveyard::models_dir, model + ".yall")
 
@@ -358,6 +534,11 @@ act write_generated_model_files(model)
     :write_text!(
         :path_join(:path_join("views", model), "show.gbln"),
         build_show_view_file(model, model_registry)
+    )
+
+    :write_text!(
+        :path_join(:path_join("views", model), "edit.gbln"),
+        build_edit_view_file(model, model_registry)
     )
 
     return true

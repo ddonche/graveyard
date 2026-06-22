@@ -11,11 +11,15 @@ actions = [
     "graveyard::create_shard",
     "graveyard::save_shard",
     "graveyard::read_shard",
+    "graveyard::update_shard",
     "graveyard::delete_shard",
     "graveyard::shard_path_for",
     "graveyard::shard_bucket",
     "graveyard::shard_meta",
     "graveyard::shard_body",
+    "graveyard::shard_id_dir_for",
+    "graveyard::shard_version_files",
+    "graveyard::latest_version_on_disk",
 
     "graveyard::model_registry_path",
     "graveyard::registry_id",
@@ -29,6 +33,15 @@ actions = [
     "graveyard::field_id",
     "graveyard::register_field",
     "graveyard::register_model_with_fields",
+
+    "graveyard::index_path_for",
+    "graveyard::read_index",
+    "graveyard::write_index",
+    "graveyard::find_entry_pos",
+    "graveyard::append_to_index!",
+    "graveyard::set_current_version!",
+    "graveyard::remove_from_index!",
+    "graveyard::latest_version",
 
     "graveyard::write_generated_model_files"
 ]

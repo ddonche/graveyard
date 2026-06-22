@@ -1,10 +1,15 @@
 /// core/models.gbln
-/// Graveyard model registry.
+/// Graveyard model registry (schema).
+///
+/// Schema is developer-defined model/field shape — stored under
+/// #graveyard::storage{"schema"}. Distinct from indexes
+/// (#graveyard::storage{"indexes"}), which hold derived, rebuildable
+/// shard-id lookups and allocators.
 
 import "storage"
 
-#graveyard::models_dir | :path_join(#graveyard::storage{"indexes"}, "models")
-#graveyard::models_registry_path | :path_join(#graveyard::storage{"indexes"}, "models.yall")
+#graveyard::models_dir | :path_join(#graveyard::storage{"schema"}, "models")
+#graveyard::models_registry_path | :path_join(#graveyard::storage{"schema"}, "models.yall")
 
 act empty_models_registry()
     return {
@@ -24,7 +29,7 @@ act load_models_registry()
         return :yall_parse_file(#graveyard::models_registry_path)
     xx
 
-    :create_dir!(#graveyard::storage{"indexes"})
+    :create_dir!(#graveyard::storage{"schema"})
     :create_dir!(#graveyard::models_dir)
 
     registry | empty_models_registry()

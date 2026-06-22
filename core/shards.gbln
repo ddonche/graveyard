@@ -18,6 +18,7 @@
 
 import "storage"
 import "models"
+import "indexes"
 
 #graveyard::shard_fence | "^^^^"
 
@@ -125,6 +126,61 @@ act ensure_shard_dir_for(model_key, id)
 xx
 
 /// ----------------------------------------------------------------------
+/// Return the directory containing all version files for a shard id.
+/// ----------------------------------------------------------------------
+act shard_id_dir_for(model_key, id)
+    bucket | shard_bucket(id)
+
+    model_dir  | :path_join(#graveyard::storage{"shards"}, model_key)
+    bucket_dir | :path_join(model_dir, bucket)
+
+    return :path_join(bucket_dir, id + "")
+xx
+
+/// ----------------------------------------------------------------------
+/// Return the list of version files (v*.gbln) currently on disk for
+/// a shard id. Empty list if the shard has no files at all.
+/// ----------------------------------------------------------------------
+act shard_version_files(model_key, id)
+    id_dir | shard_id_dir_for(model_key, id)
+
+    if :file_exists(id_dir) == false
+        return []
+    xx
+
+    return :walk(id_dir, "*")
+xx
+
+/// ----------------------------------------------------------------------
+/// Return the highest existing version number for a shard id, by
+/// scanning disk (authoritative — disk is the source of truth, the
+/// index is only ever a derived hint). Returns nix if no versions
+/// exist at all.
+/// ----------------------------------------------------------------------
+act latest_version_on_disk(model_key, id)
+    files | shard_version_files(model_key, id)
+
+    if :len(files) == 0 => return ..
+
+    highest | 0
+
+    repeat files as file_path
+        name | :stem(file_path)
+        num_text | :keep_after(name, "v")
+        num | :int(num_text)
+
+        if num.nix? => skip
+        if num > highest
+            highest |= num
+        xx
+    xx
+
+    if highest == 0 => return ..
+
+    return highest
+xx
+
+/// ----------------------------------------------------------------------
 /// Parse raw shard text into { meta, body }.
 /// ----------------------------------------------------------------------
 act parse_shard(text)
@@ -211,23 +267,72 @@ act create_shard(meta, body)
 
     save_shard(meta, body)
 
+    graveyard::append_to_index(model, id)
+
     path | shard_path_for(model_key, id, 1)
+
+    if :file_exists(path)
+        return id
+    xx
+
+    return ..
+xx
+
+act delete_shard(model_key, id, version)
+    path | shard_path_for(model_key, id, version)
+
+    if :file_exists(path) => :delete_path!(path)
+
+    remaining | shard_version_files(model_key, id)
+
+    if :len(remaining) == 0
+        graveyard::remove_from_index(model_key, id)
+    xx
+xx
+
+/// ----------------------------------------------------------------------
+/// Update an existing shard: load current state, write a NEW version
+/// file (full snapshot, not a diff), and advance the index's
+/// current_version for this id.
+///
+/// meta_updates: map of domain fields to overwrite (e.g. from a form).
+/// Framework fields (id, model, model_id, created_at) are preserved
+/// from the current version. updated_at is refreshed. version is
+/// always current-on-disk + 1, determined by scanning disk directly
+/// (not by trusting the index), since disk is the source of truth.
+/// ----------------------------------------------------------------------
+act update_shard(model_key, id, meta_updates, body)
+    current_version | latest_version_on_disk(model_key, id)
+
+    if current_version.nix? => send ..
+
+    current | read_shard(model_key, id, current_version)
+    meta    | current{"meta"}
+
+    update_names | :keys(meta_updates)
+
+    repeat update_names as field_name
+        field_value | meta_updates{field_name}
+        :update_at!(meta, field_name, field_value)
+    xx
+
+    new_version | current_version + 1
+    updated_at  | :to_iso(:now())
+
+    :update_at!(meta, "version", new_version)
+    :update_at!(meta, "updated_at", updated_at)
+
+    save_shard(meta, body)
+
+    graveyard::set_current_version(model_key, id, new_version)
+
+    path | shard_path_for(model_key, id, new_version)
 
     if :file_exists(path)
         return path
     xx
 
     return ..
-xx
-
-/// ----------------------------------------------------------------------
-/// Delete a shard file by model key + ID + version.
-/// Does not remove index entries. indexes.gbln owns that.
-/// ----------------------------------------------------------------------
-act delete_shard(model_key, id, version)
-    path | shard_path_for(model_key, id, version)
-
-    if :file_exists(path) => :delete_path!(path)
 xx
 
 /// ----------------------------------------------------------------------
