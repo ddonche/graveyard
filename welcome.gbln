@@ -1,0 +1,165 @@
+<{ render }>
+
+<{
+use graveyard
+
+gy_version   | "0.1.0"
+project_name | "my_site"
+
+registry     | graveyard::load_models_registry()
+all_models   | registry{"models"}
+model_names  | :keys(all_models)
+total_shards | 0
+
+repeat model_names as mname
+    if mname == "system" => skip
+    entries      | graveyard::read_index(mname)
+    total_shards |= total_shards + :len(entries)
+xx
+
+glam_names | :list_dirs("glams")
+}>
+
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Graveyard — <{ project_name }></title>
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        body { background: #181818; color: #fff; font-family: system-ui, -apple-system, sans-serif; min-height: 100vh; padding: 2.5rem 1.5rem; }
+        .wrap { max-width: 860px; margin: 0 auto; }
+        .header { display: flex; align-items: center; gap: 1.25rem; flex-wrap: wrap; margin-bottom: 2rem; padding-bottom: 1.5rem; border-bottom: 0.5px solid rgba(255,255,255,0.1); }
+        .logo img { height: 80px; width: auto; }
+        .welcome { font-size: 28px; font-weight: 500; color: #fff; margin-bottom: 1.25rem; text-align: center; }
+        .badges { display: flex; gap: 8px; flex-wrap: wrap; }
+        .badge { font-size: 11px; padding: 3px 9px; border-radius: 5px; font-family: monospace; border: 0.5px solid rgba(255,255,255,0.15); color: rgba(255,255,255,0.5); background: rgba(255,255,255,0.06); }
+        .badge-ok { background: rgba(30,180,100,0.15); color: #4ec98a; border-color: rgba(78,201,138,0.3); }
+        .stat-row { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 10px; margin-bottom: 10px; }
+        .two-col { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 10px; margin-bottom: 10px; }
+        .card { background: #111; border: 0.5px solid rgba(255,255,255,0.09); border-radius: 10px; padding: 1rem 1.1rem; margin-bottom: 10px; }
+        .card-label { font-size: 10px; color: rgba(255,255,255,0.3); text-transform: uppercase; letter-spacing: 0.07em; margin-bottom: 0.4rem; }
+        .card-title { font-size: 15px; font-weight: 500; color: #fff; margin-bottom: 0.2rem; }
+        .card-sub { font-size: 12px; color: rgba(255,255,255,0.4); font-family: monospace; }
+        .section-label { font-size: 10px; color: rgba(255,255,255,0.25); text-transform: uppercase; letter-spacing: 0.07em; margin-bottom: 0.5rem; }
+        .item-row { display: flex; align-items: center; gap: 8px; padding: 5px 0; border-bottom: 0.5px solid rgba(255,255,255,0.07); font-size: 12px; font-family: monospace; }
+        .item-row:last-child { border-bottom: none; }
+        .dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; background: #4ec98a; }
+        .item-name { color: rgba(255,255,255,0.8); flex: 1; }
+        .empty-note { color: rgba(255,255,255,0.25); font-size: 12px; font-family: monospace; padding: 0.4rem 0; }
+        .empty-hint { color: rgba(255,255,255,0.2); font-size: 11px; margin-top: 0.3rem; }
+        .empty-hint code { font-family: monospace; color: rgba(255,255,255,0.35); }
+        .cmd-block { background: #0d0d0d; border: 0.5px solid rgba(255,255,255,0.07); border-radius: 6px; padding: 0.55rem 0.9rem; margin: 0.35rem 0; display: flex; justify-content: space-between; align-items: center; gap: 1rem; }
+        .cmd { font-family: monospace; font-size: 12px; color: rgba(255,255,255,0.75); }
+        .cmd .kw { color: #c0392b; }
+        .cmd .dim { color: rgba(255,255,255,0.3); }
+        .cmd-desc { font-size: 11px; color: rgba(255,255,255,0.25); text-align: right; flex-shrink: 0; }
+        .footer { margin-top: 1.75rem; padding-top: 1rem; border-top: 0.5px solid rgba(255,255,255,0.08); display: flex; justify-content: space-between; align-items: center; font-size: 11px; color: rgba(255,255,255,0.2); flex-wrap: wrap; gap: 0.5rem; }
+        .footer code { font-family: monospace; color: rgba(255,255,255,0.35); }
+        .footer-links { display: flex; gap: 12px; }
+        .footer-links a { color: #c0392b !important; text-decoration: none; }
+        .footer-links a:hover { color: #e04030 !important; }
+    </style>
+</head>
+<body>
+<div class="wrap">
+
+    <div class="header">
+        <div class="logo">
+            <img src="assets/graveyard-logo-dark-nobg.png" alt="Graveyard">
+        </div>
+        <div class="badges">
+            <span class="badge badge-ok">server running</span>
+            <span class="badge">gy v<{ gy_version }></span>
+        </div>
+    </div>
+
+    <div class="welcome">Graveyard is working. Welcome to the Horde!</div>
+
+    <div class="stat-row">
+        <div class="card" style="margin-bottom:0;">
+            <div class="card-label">project</div>
+            <div class="card-title"><{ project_name }></div>
+        </div>
+        <div class="card" style="margin-bottom:0;">
+            <div class="card-label">environment</div>
+            <div class="card-title">development</div>
+            <div class="card-sub">localhost:5173</div>
+        </div>
+        <div class="card" style="margin-bottom:0;">
+            <div class="card-label">shards</div>
+            <div class="card-title"><{ total_shards }> indexed</div>
+        </div>
+    </div>
+
+    <div class="two-col">
+
+        <div class="card" style="margin-bottom:0;">
+            <div class="card-label">glams</div>
+            <div class="section-label">loaded packages</div>
+            <{ repeat glam_names as gname }>
+                <div class="item-row">
+                    <span class="dot"></span>
+                    <span class="item-name"><{ gname }></span>
+                </div>
+            <{ xx }>
+        </div>
+
+        <div class="card" style="margin-bottom:0;">
+            <div class="card-label">routes</div>
+            <div class="section-label">from routes.gbln</div>
+            <div class="empty-note">no routes defined yet</div>
+            <div class="empty-hint">add routes to <code>routes.gbln</code> to get started</div>
+        </div>
+
+    </div>
+
+    <div class="card">
+        <div class="card-label">cli reference</div>
+        <div class="cmd-block">
+            <span class="cmd"><span class="kw">gy</span> serve</span>
+            <span class="cmd-desc">start dev server</span>
+        </div>
+        <div class="cmd-block">
+            <span class="cmd"><span class="kw">gy</span> new model <span class="dim">"Post"</span></span>
+            <span class="cmd-desc">create a new model</span>
+        </div>
+        <div class="cmd-block">
+            <span class="cmd"><span class="kw">gy</span> generate scaffold <span class="dim">Post title:str body:str</span></span>
+            <span class="cmd-desc">scaffold model + actions + views</span>
+        </div>
+        <div class="cmd-block">
+            <span class="cmd"><span class="kw">gy</span> index</span>
+            <span class="cmd-desc">rebuild shard index</span>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-label">routes.gbln reference</div>
+        <div class="cmd-block">
+            <span class="cmd"><span class="kw">get</span> "/" <span class="dim">=> pages#index</span></span>
+            <span class="cmd-desc">map root to action</span>
+        </div>
+        <div class="cmd-block">
+            <span class="cmd"><span class="kw">get</span> "/posts/:slug" <span class="dim">=> posts#show</span></span>
+            <span class="cmd-desc">route with param</span>
+        </div>
+        <div class="cmd-block">
+            <span class="cmd"><span class="kw">resources</span> :posts</span>
+            <span class="cmd-desc">full CRUD route set</span>
+        </div>
+    </div>
+
+    <div class="footer">
+        <span>define a root route in <code>routes.gbln</code> to replace this page</span>
+        <div class="footer-links">
+            <a href="https://grvyrd.dev/docs">docs</a>
+            <a href="https://github.com/ddonche/graveyard">github</a>
+            <a href="https://grvyrd.dev">graveyard</a>
+        </div>
+    </div>
+
+</div>
+</body>
+</html>

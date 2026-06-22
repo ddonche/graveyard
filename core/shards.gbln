@@ -200,7 +200,7 @@ xx
 act build_shard_text(meta, body)
     meta_text | :yall_write(meta)
 
-    return #graveyard::shard_fence + "\n" + meta_text + "\n" + #graveyard::shard_fence + "\n\n" + body
+    return #graveyard::shard_fence + "\n" + meta_text + "\n" + #graveyard::shard_fence + "\n" + body
 xx
 
 /// ----------------------------------------------------------------------
